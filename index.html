@@ -80,7 +80,7 @@ async function openChat(id){
  $("chatTitle").textContent=title;$("chatAvatar").textContent=initials(title);$("chatSubtitle").textContent=(members||[]).length+" member"+((members||[]).length===1?"":"s");
  $("welcome").classList.add("hidden");$("chatContent").classList.remove("hidden");$("chatPanel").classList.add("show");await loadMessages();
  messagesChannel=db.channel("messages-"+id).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+id},payload=>appendMessage(payload.new)).subscribe();
- callChannel=db.channel("call-"+id).on("broadcast",{event:"signal"},({payload})=>handleSignal(payload)).subscribe();
+ callChannel=db.channel("call-"+id,{config:{private:true}}).on("broadcast",{event:"signal"},({payload})=>handleSignal(payload));await new Promise(resolve=>{callChannel.subscribe(status=>{if(status==="SUBSCRIBED"||status==="CHANNEL_ERROR"||status==="TIMED_OUT")resolve()})});
  await loadChats();
 }
 async function loadMessages(){const {data,error}=await db.from("messages").select("*").eq("conversation_id",active.id).order("created_at",{ascending:true}).limit(150);if(error){toast(error.message);return}$("messages").innerHTML="";for(const m of data||[])await appendMessage(m,false);$("messages").scrollTop=$("messages").scrollHeight}
