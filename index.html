@@ -16,7 +16,7 @@
 <aside class="sidebar">
  <div class="brand"><div class="logo">L</div><div><h1>LINKUP</h1><small>Connect. Chat. Play.</small></div></div>
  <div class="me"><div class="avatar" id="myAvatar">G</div><div><strong id="myName">Guest</strong><small>Guest profile</small></div><button id="editProfile">Edit</button></div>
- <div class="side-actions"><button class="btn" id="newChat">＋ New chat</button><button class="btn secondary" id="joinChat">↗ Join</button></div>
+ <div class="side-actions"><button class="btn" id="newChat">＋ New chat</button><button class="btn secondary" id="newGroup">＋ Group</button><button class="btn secondary" id="joinChat">↗ Join</button></div>
  <div class="section-label">Messages</div><div class="chats" id="chatList"><div class="empty-list">Your conversations will show up here.</div></div>
 </aside>
 <main class="chat" id="chatPanel">
@@ -65,7 +65,7 @@ async function createConversation(name,isGroup){
  const {error:memberErr}=await db.from("conversation_members").insert({conversation_id:c.id,user_id:user.id});if(memberErr){toast(memberErr.message);return}
  await loadChats();await openChat(c.id);return c;
 }
-$("newChat").onclick=()=>modal("New conversation","Create a private chat or a group. Share the invite link with friends.","Chat or group name","Create",async name=>{await createConversation(name||"New chat",true)});
+$("newChat").onclick=()=>createConversation(null,false);\n$("newGroup").onclick=()=>modal("New group","Give your group a name, then invite friends.","Group name","Create",async name=>{if(name)await createConversation(name,true)});
 $("welcomeNew").onclick=()=>$("newChat").click();
 $("joinChat").onclick=()=>modal("Join a conversation","Paste the invite code or full LINKUP invite URL.","Invite code or link","Join",joinByCode);
 async function joinByCode(raw){const code=(raw.match(/[?&]join=([^&]+)/)||[])[1]||raw.trim();if(!code)return;const {data,error}=await db.rpc("join_conversation_by_code",{_code:code});if(error){toast(error.message);return}await loadChats();await openChat(data);toast("You're in!")};
