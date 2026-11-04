@@ -125,3 +125,17 @@ using (public.is_conversation_member(substring(realtime.topic() from 6)::uuid, a
 drop policy if exists "LINKUP members can send call broadcasts" on realtime.messages;
 create policy "LINKUP members can send call broadcasts" on realtime.messages for insert to authenticated
 with check (public.is_conversation_member(substring(realtime.topic() from 6)::uuid, auth.uid()));
+
+
+-- A participant can set a private nickname for another member in their own chat view.
+create or replace function public.set_member_nickname(_conversation_id uuid, _target_user_id uuid, _nickname text)
+returns void language plpgsql security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null or not public.is_conversation_member(_conversation_id, auth.uid()) then raise exception 'Not a member of this conversation'; end if;
+  if not public.is_conversation_member(_conversation_id, _target_user_id) then raise exception 'That person is not in this conversation'; end if;
+  if length(coalesce(_nickname,'')) > 28 then raise exception 'Nickname is too long'; end if;
+  update public.conversation_members set nickname = nullif(trim(_nickname), '') where conversation_id = _conversation_id and user_id = _target_user_id;
+end;
+$$;
+grant execute on function public.set_member_nickname(uuid, uuid, text) to authenticated;
