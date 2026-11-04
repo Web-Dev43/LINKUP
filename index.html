@@ -62,8 +62,14 @@ async function loadChats(){
  document.querySelectorAll(".chat-item").forEach(b=>b.onclick=()=>openChat(b.dataset.id));
 }
 async function createConversation(name,isGroup){
- const {data:c,error}=await db.from("conversations").insert({name:name||null,is_group:isGroup,created_by:user.id}).select().single();if(error){toast(error.message);return}
- const {error:memberErr}=await db.from("conversation_members").insert({conversation_id:c.id,user_id:user.id});if(memberErr){toast(memberErr.message);return}
+ const {data:authData,error:authError}=await db.auth.getUser();
+ const currentUser=authData?.user;
+ if(authError||!currentUser){toast("Your guest session expired. Refresh the page to reconnect, then try again.");return}
+ user=currentUser;
+ const {data:c,error}=await db.from("conversations").insert({name:name||null,is_group:isGroup,created_by:currentUser.id}).select().single();
+ if(error){toast("Couldn't create chat: "+error.message);return}
+ const {error:memberErr}=await db.from("conversation_members").insert({conversation_id:c.id,user_id:currentUser.id});
+ if(memberErr){toast("Chat created, but joining it failed: "+memberErr.message);return}
  await loadChats();await openChat(c.id);return c;
 }
 $("newChat").onclick=()=>createConversation(null,false);
