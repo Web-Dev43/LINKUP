@@ -37,7 +37,7 @@ const SUPABASE_URL="https://wmdwpqdpdydwspliqyce.supabase.co";
 const SUPABASE_KEY="sb_publishable_zRtyRz0pBLhfynp8oNiOeg_KzK7Y3Ah";
 const db=createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=id=>document.getElementById(id);
-let user=null,profile=null,active=null,messagesChannel=null,callChannel=null,pc=null,localStream=null,recorder=null,recordChunks=[],callMode="audio",gameState=null,pendingCandidates=[];
+let user=null,profile=null,active=null,messagesChannel=null,callChannel=null,pc=null,localStream=null,recorder=null,recordChunks=[],callMode="audio",gameState=null,pendingCandidates=[],activePeerId=null;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function toast(s){$("notice").textContent=s;$("notice").classList.remove("hidden");setTimeout(()=>$("notice").classList.add("hidden"),3200)}
 function modal(title,desc,placeholder,confirm,onConfirm){$("modalRoot").innerHTML='<div class="modal-wrap"><div class="modal"><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p><input id="modalField" class="field" maxlength="70" placeholder="'+esc(placeholder)+'"><div class="modal-actions"><button class="btn secondary" id="cancelModal">Cancel</button><button class="btn" id="confirmModal">'+esc(confirm)+'</button></div></div></div>';$("cancelModal").onclick=()=>$("modalRoot").innerHTML="";$("confirmModal").onclick=()=>{const v=$("modalField").value.trim();$("modalRoot").innerHTML="";onConfirm(v)};$("modalField").focus()}
@@ -53,6 +53,7 @@ async function boot(){
 $("start").onclick=async()=>{const name=$("displayName").value.trim()||"Guest";const {data,error}=await db.from("profiles").upsert({id:user.id,display_name:name}).select().single();if(error){toast(error.message);return}profile=data;$("setup").classList.add("hidden");renderMe();await loadChats();checkInvite()};
 function renderMe(){$("myName").textContent=profile.display_name;$("myAvatar").textContent=initials(profile.display_name)}
 $("editProfile").onclick=()=>modal("Edit your name","Choose the name your friends see.","Display name","Save",async name=>{if(!name)return;const {data,error}=await db.from("profiles").update({display_name:name}).eq("id",user.id).select().single();if(error)return toast(error.message);profile=data;renderMe();toast("Profile updated")});
+$("chatTitle").onclick=()=>{if(!active||!activePeerId)return;modal("Rename this friend","This nickname is only shown to you in this conversation. Leave it blank to use their profile name.","Friend nickname","Save",async nickname=>{const {error}=await db.rpc("set_member_nickname",{_conversation_id:active.id,_target_user_id:activePeerId,_nickname:nickname});if(error)return toast(error.message);await openChat(active.id);toast("Nickname updated")})};
 async function loadChats(){
  renderMe();const {data:members,error}=await db.from("conversation_members").select("conversation_id").eq("user_id",user.id);if(error){toast(error.message);return}
  const ids=(members||[]).map(x=>x.conversation_id);if(!ids.length){$("chatList").innerHTML='<div class="empty-list">No chats yet. Start one or join with an invite link.</div>';return}
@@ -74,9 +75,9 @@ async function checkInvite(){const code=new URLSearchParams(location.search).get
 async function openChat(id){
  if(messagesChannel)await db.removeChannel(messagesChannel);if(callChannel)await db.removeChannel(callChannel);
  const {data:c,error}=await db.from("conversations").select("*").eq("id",id).single();if(error){toast(error.message);return}active=c;
- const {data:members}=await db.from("conversation_members").select("user_id").eq("conversation_id",id);
- const other=(members||[]).find(m=>m.user_id!==user.id);
- let title=c.name||"Private chat";if(!c.is_group&&other){const {data:p}=await db.from("profiles").select("display_name").eq("id",other.user_id).maybeSingle();title=p?.display_name||"Friend"}
+ const {data:members}=await db.from("conversation_members").select("user_id,nickname").eq("conversation_id",id);
+ const other=(members||[]).find(m=>m.user_id!==user.id);activePeerId=other?.user_id||null;
+ let title=c.name||"Private chat";if(!c.is_group&&other){const {data:p}=await db.from("profiles").select("display_name").eq("id",other.user_id).maybeSingle();title=other.nickname||p?.display_name||"Friend"}
  $("chatTitle").textContent=title;$("chatAvatar").textContent=initials(title);$("chatSubtitle").textContent=(members||[]).length+" member"+((members||[]).length===1?"":"s");
  $("welcome").classList.add("hidden");$("chatContent").classList.remove("hidden");$("chatPanel").classList.add("show");await loadMessages();
  messagesChannel=db.channel("messages-"+id).on("postgres_changes",{event:"INSERT",schema:"public",table:"messages",filter:"conversation_id=eq."+id},payload=>appendMessage(payload.new)).subscribe();
