@@ -116,3 +116,12 @@ begin
  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='messages') then alter publication supabase_realtime add table public.messages; end if;
  if not exists (select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='game_sessions') then alter publication supabase_realtime add table public.game_sessions; end if;
 end $$;
+
+
+-- Realtime broadcast access for private, conversation-scoped call signaling.
+drop policy if exists "LINKUP members can receive call broadcasts" on realtime.messages;
+create policy "LINKUP members can receive call broadcasts" on realtime.messages for select to authenticated
+using (public.is_conversation_member(substring(realtime.topic() from 6)::uuid, auth.uid()));
+drop policy if exists "LINKUP members can send call broadcasts" on realtime.messages;
+create policy "LINKUP members can send call broadcasts" on realtime.messages for insert to authenticated
+with check (public.is_conversation_member(substring(realtime.topic() from 6)::uuid, auth.uid()));
